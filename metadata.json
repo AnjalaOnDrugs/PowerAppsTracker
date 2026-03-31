@@ -1,0 +1,5 @@
+{
+  "name": "Power Apps Tracker",
+  "description": "Track Power Apps developments, tasks, and deployments across Dev, Stage, and Prod environments.",
+  "requestFramePermissions": []
+}

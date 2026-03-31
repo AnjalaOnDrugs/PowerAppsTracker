@@ -1,0 +1,174 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required, immutable)
+    //   - email: string (required, immutable)
+    //   - displayName: string (optional)
+    //   - role: string (required, 'admin' or 'developer')
+    //   - createdAt: timestamp (optional, immutable)
+    //
+    // Collection: projects
+    // Document ID: {projectId}
+    // Fields:
+    //   - name: string (required)
+    //   - description: string (optional)
+    //   - createdAt: timestamp (optional, immutable)
+    //   - createdBy: string (required, immutable)
+    //
+    // Collection: tasks
+    // Document ID: {taskId}
+    // Fields:
+    //   - title: string (required)
+    //   - description: string (optional)
+    //   - projectId: string (required)
+    //   - assigneeId: string (optional)
+    //   - status: string (required, 'todo', 'in-progress', 'completed', 'testing')
+    //   - createdAt: timestamp (optional, immutable)
+    //   - createdBy: string (required, immutable)
+    //
+    // Collection: deployments
+    // Document ID: {deploymentId}
+    // Fields:
+    //   - projectId: string (required)
+    //   - version: string (required)
+    //   - powerAppsVersion: string (required)
+    //   - environment: string (required, 'dev', 'stage', 'prod')
+    //   - taskIds: list (required)
+    //   - fileUrl: string (optional)
+    //   - fileName: string (optional)
+    //   - createdAt: timestamp (optional, immutable)
+    //   - createdBy: string (required, immutable)
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function hasRole(roleStr) {
+      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '') == roleStr ||
+        roleStr in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('roles', [])
+      );
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "harisambolaya@gmail.com" && request.auth.token.email_verified == true) ||
+        hasRole('admin')
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email']) &&
+             data.uid is string && data.uid.size() > 0 && data.uid.size() < 100 &&
+             isValidEmail(data.email) &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('role' in data) || data.role in ['admin', 'project_manager', 'developer', 'deployer']) &&
+             (!('roles' in data) || (data.roles is list && data.roles.size() <= 10)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['name', 'createdBy']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 1000)) &&
+             data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() < 100 &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['title', 'projectId', 'status', 'createdBy']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             (!('description' in data) || (data.description is string && data.description.size() < 5000)) &&
+             data.projectId is string && data.projectId.size() > 0 && data.projectId.size() < 100 &&
+             (!('assigneeId' in data) || (data.assigneeId is string && data.assigneeId.size() < 100)) &&
+             (!('assigneeIds' in data) || (data.assigneeIds is list && data.assigneeIds.size() <= 50)) &&
+             data.status in ['todo', 'in-progress', 'completed', 'testing', 'backlog'] &&
+             (!('percentage' in data) || (data.percentage is number && data.percentage >= 0 && data.percentage <= 100)) &&
+             data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() < 100 &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('startedAt' in data) || data.startedAt is timestamp) &&
+             (!('completedAt' in data) || data.completedAt is timestamp) &&
+             (!('comments' in data) || data.comments is list);
+    }
+
+    function isValidDeployment(data) {
+      return data.keys().hasAll(['projectId', 'version', 'powerAppsVersion', 'environment', 'taskIds', 'createdBy']) &&
+             data.projectId is string && data.projectId.size() > 0 && data.projectId.size() < 100 &&
+             data.version is string && data.version.size() > 0 && data.version.size() < 50 &&
+             data.powerAppsVersion is string && data.powerAppsVersion.size() > 0 && data.powerAppsVersion.size() < 50 &&
+             data.environment in ['dev', 'stage', 'prod'] &&
+             data.taskIds is list && data.taskIds.size() <= 100 &&
+             (!('fileUrl' in data) || (data.fileUrl is string && data.fileUrl.size() < 1000)) &&
+             (!('fileName' in data) || (data.fileName is string && data.fileName.size() < 200)) &&
+             data.createdBy is string && data.createdBy.size() > 0 && data.createdBy.size() < 100 &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('promotedToStageAt' in data) || data.promotedToStageAt is timestamp) &&
+             (!('promotedToProdAt' in data) || data.promotedToProdAt is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.get('role', '') == 'developer' && 'admin' in request.resource.data.get('roles', ['developer']) == false) || isAdmin()) &&
+                    request.resource.data.uid == userId;
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) &&
+                    request.resource.data.uid == resource.data.uid &&
+                    request.resource.data.email == resource.data.email &&
+                    (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt) &&
+                    ((isOwner(userId) && request.resource.data.get('role', '') == resource.data.get('role', '') && request.resource.data.get('roles', []) == resource.data.get('roles', [])) || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isValidProject(request.resource.data) &&
+                    request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAdmin() && isValidProject(request.resource.data) &&
+                    request.resource.data.createdBy == resource.data.createdBy &&
+                    (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+      allow delete: if isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidTask(request.resource.data) &&
+                    request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAuthenticated() && isValidTask(request.resource.data) &&
+                    request.resource.data.createdBy == resource.data.createdBy &&
+                    (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+      allow delete: if isAdmin();
+    }
+
+    match /deployments/{deploymentId} {
+      allow read: if isAuthenticated();
+      allow create: if (isAdmin() || hasRole('deployer')) && isValidDeployment(request.resource.data) &&
+                    request.resource.data.createdBy == request.auth.uid;
+      allow update: if (isAdmin() || hasRole('deployer')) && isValidDeployment(request.resource.data) &&
+                    request.resource.data.createdBy == resource.data.createdBy &&
+                    (!('createdAt' in request.resource.data) || request.resource.data.createdAt == resource.data.createdAt);
+      allow delete: if isAdmin() || hasRole('deployer');
+    }
+  }
+}
