@@ -8,7 +8,7 @@ import { Projects } from './pages/Projects';
 import { Tasks } from './pages/Tasks';
 import { Deployments } from './pages/Deployments';
 import { Admin } from './pages/Admin';
-import { Rocket } from 'lucide-react';
+import { PowerAppsLogo } from './components/PowerAppsLogo';
 
 const ProtectedRoute = ({ children, adminOnly = false }: { children: React.ReactNode, adminOnly?: boolean }) => {
   const { user, profile, loading } = useAuth();
@@ -41,10 +41,10 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-[#050505] flex flex-col items-center justify-center p-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-cyan-900/20 via-[#050505] to-[#050505]" />
-      <div className="z-10 bg-[#111] p-8 rounded-2xl border border-white/10 shadow-2xl shadow-cyan-500/10 max-w-md w-full text-center">
-        <Rocket className="w-16 h-16 text-cyan-400 mx-auto mb-6" />
-        <h1 className="text-3xl font-bold text-white mb-2">PowerTracker</h1>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-pink-900/20 via-[#050505] to-[#050505]" />
+      <div className="z-10 bg-[#111] p-8 rounded-2xl border border-white/10 shadow-2xl shadow-pink-500/10 max-w-md w-full text-center">
+        <PowerAppsLogo className="w-16 h-16 mx-auto mb-4 shrink-0" />
+        <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-500 mb-2">PowerTracker</h1>
         <p className="text-gray-400 mb-8">Manage your Power Apps deployments</p>
         <button
           onClick={login}
