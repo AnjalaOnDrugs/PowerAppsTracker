@@ -28,7 +28,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (firebaseUser) {
         try {
           const userDocRef = doc(db, 'users', firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
+          let userDoc;
+          try {
+            userDoc = await getDoc(userDocRef);
+          } catch (e) {
+            handleFirestoreError(e, OperationType.GET, `users/${firebaseUser.uid}`);
+            return;
+          }
 
           if (userDoc.exists()) {
             setProfile(userDoc.data() as User);
@@ -43,8 +49,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               roles: [isFirstUser ? 'admin' : 'developer'],
               createdAt: serverTimestamp() as any
             };
-            await setDoc(userDocRef, newProfile);
-            setProfile(newProfile);
+            try {
+              await setDoc(userDocRef, newProfile);
+              setProfile(newProfile);
+            } catch (createError) {
+              handleFirestoreError(createError, OperationType.CREATE, `users/${firebaseUser.uid}`);
+            }
           }
         } catch (error) {
           handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);

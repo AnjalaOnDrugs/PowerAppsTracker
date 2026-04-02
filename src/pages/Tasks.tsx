@@ -13,7 +13,7 @@ export const Tasks = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isAdding, setIsAdding] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [newTask, setNewTask] = useState({ title: '', description: '', projectId: '', assigneeIds: [] as string[], status: 'todo' as TaskStatus, percentage: 0 });
+  const [newTask, setNewTask] = useState({ title: '', description: '', projectId: '', assigneeIds: [] as string[], status: 'todo' as TaskStatus, percentage: 0, screen: '' });
   const [showBacklog, setShowBacklog] = useState(false);
   const [filterAssignee, setFilterAssignee] = useState<string>('');
   const [newComment, setNewComment] = useState('');
@@ -54,7 +54,7 @@ export const Tasks = () => {
         createdAt: serverTimestamp()
       });
       setIsAdding(false);
-      setNewTask({ title: '', description: '', projectId: '', assigneeIds: [], status: 'todo', percentage: 0 });
+      setNewTask({ title: '', description: '', projectId: '', assigneeIds: [], status: 'todo', percentage: 0, screen: '' });
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'tasks');
     }
@@ -211,6 +211,26 @@ export const Tasks = () => {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-400 mb-1">Screen</label>
+                <input
+                  type="text"
+                  list="screens-list"
+                  disabled={!isPMOrAdmin || (!isAdding ? !editingTask?.projectId : !newTask.projectId)}
+                  placeholder="Select or type a screen"
+                  className="w-full bg-black border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500 disabled:opacity-50"
+                  value={isAdding ? (newTask.screen || '') : (editingTask?.screen || '')}
+                  onChange={e => {
+                    if (isAdding) setNewTask({ ...newTask, screen: e.target.value });
+                    else setEditingTask({ ...editingTask!, screen: e.target.value });
+                  }}
+                />
+                <datalist id="screens-list">
+                  {projects.find(p => p.id === (isAdding ? newTask.projectId : editingTask?.projectId))?.screens?.map(s => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
+              </div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-400 mb-1">Assignees</label>
                 <div className={`w-full bg-black border border-white/10 rounded-lg px-4 py-2 ${!isPMOrAdmin ? 'opacity-50 pointer-events-none' : ''}`}>
                   <div className="max-h-32 overflow-y-auto custom-scrollbar flex flex-col gap-2">
@@ -395,9 +415,16 @@ export const Tasks = () => {
 
                     <div className="flex justify-between items-center text-xs mt-auto pt-2 border-t border-white/5">
                       <div className="flex items-center gap-3">
-                        <span className="bg-white/5 text-gray-400 px-2 py-1 rounded-md max-w-[100px] truncate">
-                          {projects.find(p => p.id === task.projectId)?.name || 'Unknown Project'}
-                        </span>
+                        <div className="flex flex-col gap-1">
+                          <span className="bg-white/5 text-gray-400 px-2 py-1 rounded-md max-w-[100px] truncate">
+                            {projects.find(p => p.id === task.projectId)?.name || 'Unknown Project'}
+                          </span>
+                          {task.screen && (
+                            <span className="bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-1 rounded-md max-w-[100px] truncate" title={task.screen}>
+                              {task.screen}
+                            </span>
+                          )}
+                        </div>
                         {task.comments && task.comments.length > 0 && (
                           <span className="flex items-center gap-1 text-gray-400" title={`${task.comments.length} Comments`}>
                             <MessageSquare className="w-3 h-3" />

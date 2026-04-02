@@ -15,11 +15,19 @@ export interface Project {
   id: string;
   name: string;
   description?: string;
+  screens?: string[];
   createdAt?: Timestamp;
   createdBy: string;
 }
 
 export type TaskStatus = 'backlog' | 'todo' | 'in-progress' | 'completed' | 'testing';
+
+export interface TaskComment {
+  id: string;
+  text: string;
+  createdBy: string;
+  createdAt: number;
+}
 
 export interface Task {
   id: string;
@@ -29,6 +37,9 @@ export interface Task {
   assigneeId?: string; // Legacy support
   assigneeIds?: string[];
   status: TaskStatus;
+  percentage?: number;
+  screen?: string;
+  comments?: TaskComment[];
   createdAt?: Timestamp;
   createdBy: string;
   startedAt?: Timestamp;
