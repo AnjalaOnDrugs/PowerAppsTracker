@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { Task, Project, User, TaskStatus } from '../types';
 import { useAuth } from '../AuthContext';
 import { handleFirestoreError, OperationType } from '../lib/utils';
-import { Plus, Trash2, CheckSquare, Edit2, X, Filter, Archive, Clock, MessageSquare, Send as SendIcon } from 'lucide-react';
+import { Plus, Trash2, CheckSquare, Edit2, X, Filter, Archive, Clock, MessageSquare, Send as SendIcon, ChevronDown, ChevronRight } from 'lucide-react';
 
 export const Tasks = () => {
   const { profile } = useAuth();
@@ -17,6 +17,10 @@ export const Tasks = () => {
   const [showBacklog, setShowBacklog] = useState(false);
   const [filterAssignee, setFilterAssignee] = useState<string>('');
   const [newComment, setNewComment] = useState('');
+
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    'in-progress': true
+  });
 
   useEffect(() => {
     const unsubTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
@@ -366,18 +370,43 @@ export const Tasks = () => {
         </div >
       )}
 
-      <div className={`grid grid-cols-1 md:grid-cols-2 ${showBacklog ? 'lg:grid-cols-1' : 'lg:grid-cols-4'} gap-6`}>
-        {(showBacklog ? (['backlog'] as TaskStatus[]) : statuses).map(status => (
-          <div key={status} className="bg-[#111] border border-white/10 rounded-2xl p-4 flex flex-col h-[calc(100vh-200px)]">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${status === 'backlog' ? 'bg-orange-500' : status === 'todo' ? 'bg-gray-500' : status === 'in-progress' ? 'bg-blue-500' : status === 'testing' ? 'bg-yellow-500' : 'bg-green-500'}`} />
-              {status}
-            </h3>
-            <div className={`flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar ${showBacklog ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 space-y-0' : ''}`}>
-              {tasks.filter(t => {
-                const assignedTo = t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []);
-                return t.status === status && (filterAssignee ? assignedTo.includes(filterAssignee) : true);
-              }).map(task => {
+      <div className={`flex flex-col ${showBacklog ? '' : 'md:flex-row md:flex-wrap lg:flex-nowrap'} gap-6 items-start`}>
+        {(showBacklog ? (['backlog'] as TaskStatus[]) : statuses).map(status => {
+          const isExpanded = expandedSections[status];
+          const statusTasks = tasks.filter(t => {
+            const assignedTo = t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []);
+            return t.status === status && (filterAssignee ? assignedTo.includes(filterAssignee) : true);
+          });
+
+          const expandedClasses = showBacklog 
+            ? "h-[500px] lg:h-[calc(100vh-200px)] w-full" 
+            : "h-[500px] md:h-[calc(100vh-200px)] w-full md:w-[calc(50%-12px)] lg:flex-1 lg:w-auto lg:min-w-[300px]";
+          
+          const collapsedClasses = showBacklog
+            ? "h-auto w-full"
+            : "h-auto md:h-[calc(100vh-200px)] w-full md:w-[calc(50%-12px)] lg:w-[160px] lg:flex-none overflow-hidden";
+
+          return (
+          <div key={status} className={`bg-[#111] border border-white/10 rounded-2xl p-4 flex flex-col transition-all duration-300 ${isExpanded ? expandedClasses : collapsedClasses}`}>
+            <div 
+              className="flex items-center justify-between mb-4 cursor-pointer group"
+              onClick={() => setExpandedSections(prev => ({ ...prev, [status]: !prev[status] }))}
+            >
+              <h3 className="text-sm font-bold text-gray-400 flex items-center gap-2 overflow-hidden w-full">
+                <div className={`w-2 h-2 shrink-0 rounded-full ${status === 'backlog' ? 'bg-orange-500' : status === 'todo' ? 'bg-gray-500' : status === 'in-progress' ? 'bg-blue-500' : status === 'testing' ? 'bg-yellow-500' : 'bg-green-500'}`} />
+                <span className="uppercase tracking-wider truncate">{status}</span>
+                <span className="ml-auto bg-white/10 text-white/70 text-[10px] py-0.5 px-2 rounded-full font-medium shrink-0">
+                  {statusTasks.length} {statusTasks.length === 1 ? 'task' : 'tasks'}
+                </span>
+              </h3>
+              <div className="text-gray-500 group-hover:text-white transition-colors shrink-0 ml-2">
+                {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+              </div>
+            </div>
+            
+            {isExpanded && (
+              <div className={`flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar ${showBacklog ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 space-y-0' : ''}`}>
+                {statusTasks.map(task => {
                 const isAssigned = (task.assigneeIds || (task.assigneeId ? [task.assigneeId] : [])).includes(profile?.uid || '');
                 const canEdit = isPMOrAdmin || ((profile?.roles?.includes('developer') || profile?.role === 'developer') && isAssigned);
 
@@ -448,15 +477,13 @@ export const Tasks = () => {
                   </div>
                 )
               })}
-              {tasks.filter(t => {
-                const assignedTo = t.assigneeIds || (t.assigneeId ? [t.assigneeId] : []);
-                return t.status === status && (filterAssignee ? assignedTo.includes(filterAssignee) : true);
-              }).length === 0 && (
+              {statusTasks.length === 0 && (
                   <div className="text-gray-600 text-sm text-center py-4 col-span-full">No tasks found.</div>
                 )}
-            </div>
+              </div>
+            )}
           </div>
-        ))}
+        )})}
       </div>
     </div >
   );
