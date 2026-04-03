@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { Task, Project, User, TaskStatus } from '../types';
 import { useAuth } from '../AuthContext';
 import { handleFirestoreError, OperationType } from '../lib/utils';
-import { Plus, Trash2, CheckSquare, Edit2, X, Filter, Archive, Clock, MessageSquare, Send as SendIcon, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Trash2, CheckSquare, Edit2, X, Filter, Archive, Clock, MessageSquare, Send as SendIcon, ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 
 export const Tasks = () => {
   const { profile } = useAuth();
@@ -21,6 +21,76 @@ export const Tasks = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     'in-progress': true
   });
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const handleCopyReport = async () => {
+    const reportTasks = tasks.filter(t => {
+      if (t.status === 'backlog') return false;
+      if (t.status === 'completed') {
+        if (!t.completedAt) return false;
+        const completedDate = t.completedAt.toDate();
+        const today = new Date();
+        return completedDate.getDate() === today.getDate() && 
+               completedDate.getMonth() === today.getMonth() && 
+               completedDate.getFullYear() === today.getFullYear();
+      }
+      return true;
+    });
+
+    const headers = ['Screen', 'Task', 'Assigned', 'Status', 'Comment'];
+    
+    // Generate Rows Data
+    const formattedRows = reportTasks.map(t => {
+      const screen = t.screen || '';
+      const title = t.title.replace(/\r?\n|\r/g, ' ').trim();
+      const assignees = (t.assigneeIds || (t.assigneeId ? [t.assigneeId] : [])).map(id => {
+        const dev = users.find(u => u.uid === id);
+        return dev ? (dev.displayName || dev.email?.split('@')[0] || 'Unknown') : '';
+      }).filter(Boolean).join(' / ');
+      const statusText = t.status === 'todo' ? 'Pending' : t.status.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+      const latestComment = t.comments?.length ? t.comments[t.comments.length - 1].text.replace(/\r?\n|\r/g, ' ').trim() : '';
+      return { screen, title, assignees, statusText, latestComment };
+    });
+
+    const rowsAsArray = formattedRows.map(r => Object.values(r));
+    const tsvString = [headers.join('\t'), ...rowsAsArray.map(r => r.join('\t'))].join('\n');
+
+    // Generate HTML String to ensure borders in Teams/Outlook
+    const htmlString = `
+      <table style="border-collapse: collapse; min-width: 100%; font-family: sans-serif; font-size: 14px;">
+        <thead>
+          <tr>
+            ${headers.map(h => `<th style="border: 1px solid #ccc; padding: 8px; font-weight: bold; text-align: left; background-color: #f3f4f6; color: #333;">${h}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${formattedRows.map(r => `
+            <tr>
+              <td style="border: 1px solid #ccc; padding: 8px; color: #111;">${r.screen}</td>
+              <td style="border: 1px solid #ccc; padding: 8px; color: #111;">${r.title}</td>
+              <td style="border: 1px solid #ccc; padding: 8px; color: #111;">${r.assignees}</td>
+              <td style="border: 1px solid #ccc; padding: 8px; color: #111;">${r.statusText}</td>
+              <td style="border: 1px solid #ccc; padding: 8px; color: #111;">${r.latestComment}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    try {
+      const typeText = new Blob([tsvString], { type: 'text/plain' });
+      const typeHtml = new Blob([htmlString], { type: 'text/html' });
+      const clipboardItem = new ClipboardItem({
+        'text/plain': typeText,
+        'text/html': typeHtml
+      });
+      await navigator.clipboard.write([clipboardItem]);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy', err);
+    }
+  };
 
   useEffect(() => {
     const unsubTasks = onSnapshot(collection(db, 'tasks'), (snapshot) => {
@@ -160,6 +230,13 @@ export const Tasks = () => {
           >
             <Archive className="w-5 h-5" />
             {showBacklog ? 'View Dashboard' : 'View Backlog'}
+          </button>
+          <button
+            onClick={handleCopyReport}
+            className="bg-[#111] border border-white/10 hover:border-white/30 text-gray-300 hover:text-white font-semibold py-2 px-4 rounded-xl flex items-center gap-2 transition-colors"
+          >
+            {copySuccess ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5" />}
+            {copySuccess ? 'Copied' : 'Copy'}
           </button>
           {isPMOrAdmin && (
             <button
